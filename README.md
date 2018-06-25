@@ -11,6 +11,7 @@ This issue was solved by using the power of Swift modules. You'll find that the 
 ![Module Graph](https://i.imgur.com/W8dZBjY.png)
 
 [Movile has a public video where we speak about Rapiddo's architecture. (Portuguese)](https://www.youtube.com/watch?v=mowj7aYf1x4)
+
 If you are a Rapiddo employee, you  can find documentation that explains RapiddoCore in depth at the main repository's README.
 
 ## Creating new screens in Rapiddo
