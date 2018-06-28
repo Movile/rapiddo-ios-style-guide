@@ -190,6 +190,10 @@ extension MyScreenViewController: SmartViewController {
 
 In order to maintain our status as a highly-scalable superapp, all Rapiddo code must follow these guidelines. This is not a complete list by any means, so feel free to make your own suggestions!
 
+## Regarding Frameworks
+
+Please do not import frameworks "just because". Try to do things natively, only importing frameworks if it means a massive improvement for every provider (such as `Cartography` and `PromiseKit`). Remember that this is not a regular app - if we imported frameworks for every little thing our binary would be in the gigabytes.
+
 ## Naming
 
 Using descriptive names makes code easier to read and understand. Use the Swift naming conventions described in the [API Design Guidelines](https://swift.org/documentation/api-design-guidelines/). Also refer to the Clean Code's chapter on naming for more examples. Remember what was said at the Comment's section and be aware that property/parameter/method names should be enough documentation. Make sure that their purpose can be fully understood purely by reading its name.
