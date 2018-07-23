@@ -28,7 +28,7 @@ In normal conditions, `MyScreen` would consist of:
 
 ### `MyScreenCoordinator`
 
-In MVVM-C, The Coordinator is the object responsible for handling screen transitions. It retains it's inner `UIViewController` and delegates it in order to know when to transition to another Coordinator.
+In MVVM-C, The Coordinator is the object responsible for handling screen transitions. It retains its inner `UIViewController` and delegates it in order to know when to transition to another Coordinator.
 
 ```swift
 import UIKit
@@ -459,7 +459,7 @@ func loadData() {
 }
 ```
 
-However, we do have an expection when it comes to documentation. In general, if the class you're building is supposed to be abstracted upon (which is the case of most `RapiddoCore` classes), then you should ignore these rules and document your code just like if you were building a framework (which is the case of `RapiddoCore`! :smile: ) by using Swift's documentation formats.
+However, we do have an exception when it comes to documentation. In general, if the class you're building is supposed to be abstracted upon (which is the case of most `RapiddoCore` classes), then you should ignore these rules and document your code just like if you were building a framework (which is the case of `RapiddoCore`! :smile: ) by using Swift's documentation formats.
 
 If the class is not supposed to be abstracted upon, we think that using clear names is enough. There are exceptions, so talk to your team and see what they think about it.
 
