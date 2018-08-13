@@ -8,11 +8,13 @@ How could you possibly create an app with a full Taxi funcionality, two differen
 
 This issue was solved by using the power of Swift modules. You'll find that the main Rapiddo project doesn't actually contain any of these features - all the major feature of Rapiddo (called Providers) are instead internal CocoaPods projects completely independent from the main Rapiddo project. This not only allows us to develop new features without having to build the entire project, we can also empower namespacing to have several screens with the same name. You can find these projects at the `/Dependencies` folder of the main Rapiddo repository.
 
-![Module Graph](https://i.imgur.com/W8dZBjY.png)
+![Module Graph](https://i.imgur.com/ilM2LIS.png)
 
-[Movile has a public video where we speak about Rapiddo's architecture. (Portuguese)](https://www.youtube.com/watch?v=mowj7aYf1x4)
+[Movile has a public video where we speak about Rapiddo's (old) architecture. (Portuguese)](https://www.youtube.com/watch?v=mowj7aYf1x4)
 
-If you are a Rapiddo employee, you  can find documentation that explains RapiddoCore in depth at the main repository's README.
+The actual Rapiddo project doesn't know anything about its inner Providers. All Providers are built on top of [RapiddoCore](https://github.com/Rapiddo/rapiddo-core-ios) - which is nothing more but a set of protocols that Rapiddo uses to communicate with its features. 3rd parties can use this framework to cleanly add new features to Rapiddo, while 1st party Providers have the added benefit of having access to RapiddoUtils, which is a RapiddoCore wrapper with extended functionalities such as a Coordinator architecture, error handling features and color/margin styles.
+
+If you are a Rapiddo employee, you can find documentation that explains RapiddoCore/RapiddoUtils in depth at the main repository's README. The specific RapiddoCore docs will be soon available at the public RapiddoCore repo.
 
 ## Creating new screens in Rapiddo
 
@@ -137,7 +139,7 @@ final class MyScreenView: UIView {
 
 Finally, the ViewController wraps together the previous three classes. Usually, the ViewController doesn't do anything besides routing information between the parties (the exception being `UITableView` delegates).
 
-Note that we use a protocol named `SmartViewController` in order to allow the ViewController to access the inner `MyScreenView` through a `smartView` property.
+Note that we use a protocol named `SmartViewController` in order to allow the ViewController to access the inner `MyScreenView` through a `smartView` property. You can read more about `loadView()` [here.](https://swiftrocks.com/writing-cleaner-view-code-by-overriding-loadview.html)
 
 ```swift
 import UIKit
@@ -371,7 +373,7 @@ To keep things organized and easy to maintain, we keep all colors, margins and s
 - `Margins`: The horizontal and vertical margins used by the app.
 - `Dimensions`: Key dimensions, such as button heights.
 
-All those components are part of the `RapiddoCore` framework. Always use them if possible. If a color or margin is not available inside these structs, consider talking to the designer to see if it was an oversight. In some extreme cases, we can resort to hardcoded values.
+All those components are part of the `RapiddoUtils` framework. Always use them if possible. If a color or margin is not available inside these structs, consider talking to the designer to see if it was an oversight. In some extreme cases, we can resort to hardcoded values.
 
 ## Assets & Strings
 
@@ -421,7 +423,7 @@ If the error you recieved is not an `APIError` with an underlying `SmartMessage`
 
 ### SmartMessages
 
-Application errors that require an action by the user or a explicit acknowledgment are displayed on special popups as `SmartMessages`. These errors get mapped as `APIErrors` and are returned by the server as a response of a request. Normally smart messages carry at least one action represented by a deeplink that should be handled by conforming your Coordinator to the `HandlesPopupAction` protocol. See the `DeepLink` documentation for more details.
+Application errors that require an action by the user or a explicit acknowledgment are displayed on special popups as `SmartMessages`. These errors get mapped as `APIErrors` and are returned by the server as a response of a request. Normally smart messages carry at least one action represented by an action that should be handled by conforming your Coordinator to the `ConditionalActionHandler` protocol. See `RapiddoCore`'s `Action` and `RapiddoUtils`' `ActionHandler`/`ConditionalActionHandler` documentation for more details.
 
 ## Protocol Conformance
 
