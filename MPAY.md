@@ -1,32 +1,16 @@
-# The Rapiddo iOS Style Guide
+# The MovilePay iOS Style Guide
 
-Welcome to the first Brazilian Superapp! In a project as big and sensitive as Rapiddo, things can get out of hand pretty quickly. Features are very different and have little correlation to each other, requiring major coordination between our team members. Because of that, and due to frequent team changes caused by the birth of projects like Rapiddo Pague and the Marmotex SDK, we created this guide to be sure that the iOS team members could easily hop between projects (and Marketplace modules) without major problems. There are minor differences between the projects/modules, but naming conventions and the overall feel of the project tends to be the same.
-
-# Rapiddo Marketplaces's Module System
-
-How could you possibly create an app with a full Taxi funcionality, two different Food ordering funcionatlities, a News reader, a Coupons feature, a full Music player with a monthly subscription, Phone topups and still have something that is barely maintainable at the end? How could you possibly have 6 screens called `HomeViewController` at the same app and still have things work correctly?
-
-This issue was solved by using the power of Swift modules. You'll find that the main Rapiddo project doesn't actually contain any of these features - all the major feature of Rapiddo (called Providers) are instead internal CocoaPods projects completely independent from the main Rapiddo project. This not only allows us to develop new features without having to build the entire project, we can also empower namespacing to have several screens with the same name. You can find these projects at the `/Dependencies` folder of the main Rapiddo repository.
-
-![Module Graph](https://i.imgur.com/ilM2LIS.png)
-
-[Movile has a public video where we speak about Rapiddo's (old) architecture. (Portuguese)](https://www.youtube.com/watch?v=mowj7aYf1x4)
-
-The actual Rapiddo project doesn't know anything about its inner Providers. All Providers are built on top of [RapiddoCore](https://github.com/Rapiddo/rapiddo-core-ios) - which is nothing more but a set of protocols that Rapiddo uses to communicate with its features. 3rd parties can use this framework to cleanly add new features to Rapiddo, while 1st party Providers have the added benefit of having access to RapiddoUtils, which is a RapiddoCore wrapper with extended functionalities such as a Coordinator architecture, error handling features and color/margin styles.
-
-If you are a Rapiddo employee, you can find documentation that explains RapiddoCore/RapiddoUtils in depth at the main repository's README. The specific RapiddoCore docs will be soon available at the public RapiddoCore repo.
+If you are a MovilePay employee, you can find documentation that explains how the project iself works in the main repository's README.
 
 ## Creating new screens in Rapiddo
 
 We use MVVM-C (Model View View Model with Coordinators) as our architecture with our own Coordinator implementation (which you can find documentation for in the main project's README)
 
-There are no Storyboards in Rapiddo projects - everything is done via code. While people have mixed opinions about this, we believe that view coding is the best option as it allows multiple people to code in the same screen at the same time, merge conflicts are simple and you gain more control over your screens, not to mention that you don't have to wait 10 minutes for Xcode to load the visual representation of your screen - everything is just regular code.
+There are no Storyboards in MPay projects - everything is done via code. While people have mixed opinions about this, we believe that view coding is the best option as it allows multiple people to code in the same screen at the same time, merge conflicts are simple and you gain more control over your screens, not to mention that you don't have to wait 10 minutes for Xcode to load the visual representation of your screen - everything is just regular code.
 
-In addition, this allows use to use dependency injection in a straight forward manner. You'll see that there are no singletons in Rapiddo - everything relevant to a class must be directly sent to it. This allows us to write better tests and make sure that classes can only do what they are supposed to.
+In addition, this allows use to use dependency injection in a straight forward manner. You'll see that there are no singletons in MovilePay - everything relevant to a class must be directly sent to it. This allows us to write better tests and make sure that classes can only do what they are supposed to. The only exception is some properties in the `Style` struct due to the limitations we have regarding dependencies.
 
-This section details how to create a new screen called `MyScreen`. Please note that we have a Sourcery template in the `/ClassGen` folder that you can use to generate all the files needed to create a new screen using our architecture.
-
-In normal conditions, `MyScreen` would consist of:
+This section details how to create a new screen called `MyScreen`. In normal conditions, it would consist of:
 
 ### `MyScreenCoordinator`
 
@@ -34,7 +18,6 @@ In MVVM-C, The Coordinator is the object responsible for handling screen transit
 
 ```swift
 import UIKit
-import RapiddoCore
 
 final class MyScreenCoordinator: Coordinator {
     init(client: HTTPClient, persistence: Persistence) {
@@ -53,48 +36,47 @@ extension MyScreenCoordinator: MyScreenViewControllerDelegate {
 }
 ```
 
-### `MyScreenViewModel`
+If your screen needs to retain or pass a `MovilePayDelegate` delegate forward, you should use `MovilePayCoordintor` instead as it holds an unowned reference to the delegate.
 
-The ViewModel handles a ViewController's business logic. Ideally, this is where API calls happen and where the data source is retained.
-
-```swift
-import RapiddoCore
-
-final class MyScreenViewModel {
-
+```
+final class QRScannerCoordinator: MovilePayCoordinator {
     let client: HTTPClient
-    let persistence: Persistence
-    
-    var myData = [MyData]()
 
-    init(client: HTTPClient, persistence: Persistence) {
+    init(client: HTTPClient, delegate: MovilePayDelegate) {
         self.client = client
-        self.persistence = persistence
-    }
-    
-    func getMyData() {
-        //some request
-        //myData = the result
+        let viewModel = QRScannerViewModel(client: client)
+        let viewController = QRScannerViewController(viewModel: viewModel)
+        super.init(rootViewController: viewController, delegate: delegate)
+        viewController.delegate = self
     }
 }
-
 ```
 
 ### `MyScreenView`
 
 The View is where everything regarding the visual aspect of the ViewController should be built and retained. Note that we are not in an `UIViewController`!. Instead of adding views to the ViewController, we use a separate view file and override the `UIViewController`'s default `view` property by overriding `loadView()`, as you will see below in the `MyScreenViewController` explanation.
 
+If your view is able to represent several states (like loading, loaded and error), you should abstract this logic as a `State` enum.
+
+Despite holding the references to all internal views, state-related delegates like `UITableViewDelegate` should be placed in the ViewController.
+
 ```swift
 import UIKit
-import Cartography
-import RapiddoCore
 
-protocol MyScreenViewDelegate: class {
+protocol MyScreenViewDelegate: AnyObject {
     func somethingHappened()
 }
 
 final class MyScreenView: UIView {
 
+    enum State {
+        case none
+        case loading
+        case updated
+        case error(Error)
+    }
+    
+    var state: State? = nil
     weak var delegate: MyScreenViewDelegate?
 
     private let aView: UIView = {
@@ -129,35 +111,73 @@ final class MyScreenView: UIView {
         //Constraints
     }
     
-    func render() {
-        //Update the view
+    func render(state: State) {
+        self.state = state
+        switch state {
+            //Update the view based on the state
+        }
     }
 }
 ````
 
+### `MyScreenViewModel`
+
+The ViewModel handles a ViewController's business logic. Ideally, this is where API calls happen and where the data source is retained. Changes are routed back to the ViewController in the shape of a `didSet(state:)` delegate.
+
+```swift
+import Foundation
+
+protocol MyScreenViewModelDelegate: AnyObject {
+    func didSet(state: MyScreenView.State)
+}
+
+final class MyScreenViewModel {
+
+    let client: HTTPClient
+    let persistence: Persistence
+    
+    var myData = [MyData]()
+    
+    weak var delegate: MyScreenViewModelDelegate?
+
+    init(client: HTTPClient, persistence: Persistence) {
+        self.client = client
+        self.persistence = persistence
+    }
+    
+    func getMyData() {
+        self?.delegate?.didSet(state: .loading)
+        //some request
+        //myData = the result
+        self?.delegate?.didSet(state: .updated)
+    }
+}
+
+```
+
 ### `MyScreenViewController`
 
-Finally, the ViewController wraps together the previous three classes. Usually, the ViewController doesn't do anything besides routing information between the parties (the exception being `UITableView` delegates).
+Finally, the ViewController wraps together the previous three classes. Usually, the ViewController doesn't do anything besides routing information between the parties (the exception being state-relevant delegates like `UITableView` ones).
 
-Note that we use a protocol named `SmartViewController` in order to allow the ViewController to access the inner `MyScreenView` through a `smartView` property. You can read more about `loadView()` [here.](https://swiftrocks.com/writing-cleaner-view-code-by-overriding-loadview.html)
+Note that we use a protocol named `HasCustomView` in order to allow the ViewController to access the inner `MyScreenView` through a `customView` property. You can read more about `loadView()` [here.](https://swiftrocks.com/writing-cleaner-view-code-by-overriding-loadview.html)
 
 ```swift
 import UIKit
-import RapiddoCore
 
-protocol MyScreenViewControllerDelegate: class {
+protocol MyScreenViewControllerDelegate: AnyObject {
     func continue()
 }
 
 final class MyScreenViewController: CoordenableViewController {
-    weak var delegate: MyScreenViewControllerDelegate?
 
+    weak var delegate: MyScreenViewControllerDelegate?
     let viewModel: MyScreenViewModel
 
     init(viewModel: MyScreenViewModel) {
         self.viewModel = viewModel
         super.init(nibName: nil, bundle: nil)
-        title = Localization.myScreenTitle
+        viewModel.delegate = self
+        title = L10n.myScreenTitle
     }
 
     required init?(coder aDecoder: NSCoder) {
@@ -173,7 +193,12 @@ final class MyScreenViewController: CoordenableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         viewModel.getSomething()
-        smartView.render()
+    }
+}
+
+extension MyScreenViewController: MyScreenViewModelDelegate {
+    func didSet(state: MyScreenView.State) {
+        customView.render(state: state)
     }
 }
 
@@ -183,18 +208,18 @@ extension MyScreenViewController: MyScreenViewDelegate {
     }
 }
 
-extension MyScreenViewController: SmartViewController {
-    typealias SmartView = MyScreenView
+extension MyScreenViewController: HasCustomView {
+    typealias CustomView = MyScreenView
 }
 ```
 
 # Style Guide
 
-In order to maintain our status as a highly-scalable superapp, all Rapiddo code must follow these guidelines. This is not a complete list by any means, so feel free to make your own suggestions!
+In order to maintain our status as a highly-scalable superapp, all MovilePay code must follow these guidelines. This is not a complete list by any means, so feel free to add your own suggestions!
 
 ## Regarding Frameworks
 
-Please do not import frameworks "just because". Try to do things natively, only importing frameworks if it means a massive improvement for every provider (such as `Cartography` and `PromiseKit`). Remember that this is not a regular app - if we imported frameworks for every little thing our binary would be in the gigabytes.
+Please do not import frameworks "just because". Try to do things natively, only importing frameworks if it means a massive improvement for every provider (such as `Cartography` and `PromiseKit`). Remember that this is not a regular app - Because we're an SDK, we need to be lightweight. If you need a very specific interaction, you can make the host apps provide this info through `MovilePayDelegate`.
 
 ## Naming
 
@@ -202,7 +227,7 @@ Using descriptive names makes code easier to read and understand. Use the Swift 
 
 # Views
 
-The views on the project follow a very simple structure.
+The views on the project should follow the following structure:
 
 ### Setup
 
@@ -215,7 +240,7 @@ override init(frame: CGRect) {}
 }
 ```
 
-Every view should be built purely by code, with constraints handled by the using the `Cartography` framework. To setup the subviews of a view, additional  `setup()` methods should be implemented and called on the main `setup()` method of the view.
+Every view should be built purely by code, with constraints handled by the using the `Cartography` framework. To setup the subviews of a view, additional `setup()` methods should be implemented and called on the main `setup()` method of the view.
 
 ```swift
 private func setupTableView() {
@@ -236,6 +261,7 @@ private func setup() {
     setupSegmentedControl()
 }
 ```
+
 Actions of buttons and other views are configured in the setup method of that view.
 
 ### Subview Creation
@@ -244,8 +270,8 @@ All subviews should be created and configured using closures. Any setup that doe
 
 ```swift
 let confirmButton: RapiddoButton = {
-    let button = RapiddoButton(style: .positive)
-    button.setTitle(Localization.confirm, for: .normal)
+    let button = Button(style: .primary)
+    button.setTitle(L10n.confirm, for: .normal)
     button.isEnabled = false
     return button
 }()
@@ -283,7 +309,7 @@ func render(state: State) {
 
 ### Registering and Dequeueing
 
-Rapiddo posesses abstracted versions of common cell methods for both `UITableViews` and `UICollectionViews`.
+We posesses abstracted versions of common cell methods for both `UITableViews` and `UICollectionViews`.
 
 To register a cell type, all you have to do is call the `register(_:)` method:
 
@@ -316,41 +342,31 @@ One of the most important and frequent patterns used in the the project is the `
 
 Some specific components are used throughout the project. Let’s see them.
 
-### RapiddoButton
+### Button
 
-All the buttons used on the project must be of type `RapiddoButton` in order to make sure that it follows the designated button styles of the app. Creating a new button is just a matter of choosing a style: 
-
-```swift
-let button = RapiddoButton(style: .positive)
-```
-
-At the moment, `RapiddoButton.Style` can be either `positve` or `neutral`. You should use `positive`  style when you want to draw the attention of the user to the action performed by the button and `neutral` when that is not the case. In extreme cases where the button does not match any of the current styles, you can pass a `nil` style and configure the button manually.
-
-### RapiddoLabel / Fonts
-
-In order to make sure that the correct fonts are used througout Rapiddo, every label in the project must be a `RapiddoLabel`. Just like `RapiddoButtons`, creating a new label is just a matter of picking a style:
+All the buttons used on the project must be of type `Button` to make sure that it follows the designated button styles of the app. Creating a new button is just a matter of choosing a style: 
 
 ```swift
-let label = RapiddoLabel(style: .title2)
+let button = Button(style: .primary)
 ```
 
-`RapiddoLabel.Style` is an enum covering all font sizes and weights used in Rapiddo. If you need to use a font outside the context of an `UILabel`, use the `defaultFont` property of the `RapiddoLabel.Style` like shown below:
+### Label / Fonts
+
+In order to make sure that the correct fonts are used througout the SDK, every label in the project must be a `Label`. Just like `Buttons`, creating a new label is just a matter of picking a style:
 
 ```swift
-button.titleLabel?.font = RapiddoLabel.Style.title2.defaultFont
+let label = Label(style: .title2)
 ```
 
-In the extreme case where you are required to use a font that is not part of our pre-determined styles, you can use the `custom` family of styles.
+`Label.Style` is an enum covering all font sizes and weights used in the SDK. If you need to use a font outside the context of an `UILabel`, use the `defaultFont` property of the `RapiddoLabel.Style` like shown below:
 
 ```swift
-RapiddoLabel.Style.customBold(17).defaultFont
+button.titleLabel?.font = Label.Style.title2.font
 ```
-
-However, try to first talk to the designer to see if it's not possible to adapt such font to one of our pre-determined ones.
 
 ### EmptyStateView
 
-Rapiddo's `EmptyStateView`  has two main uses in the project. Display a friendly message on screens that exhibit data that doesn’t exist yet and display error messages related to failed requests. Alongside a message, the view may also have a button and/or an image.
+MPay's `EmptyStateView` has two main uses in the project: displaying a friendly message on screens that exhibit data that doesn’t exist yet and displaying error messages related to failed requests. Alongside a message, the view may also have a button and/or an image.
 
 The empty state view works with an `EmptyStateMode`. The mode defines all the visual information that will be displayed by the view. To create a new mode, extend `EmptyStateMode` and define a new static method. Here is an example:
 
@@ -360,30 +376,37 @@ static func noOrders() -> EmptyStateMode {
 }
 ```
 
-To handle the action of the button, conform to the `EmptyStateViewDelegate` protocol and implement the `emptyStateViewButtonTouched(for mode: EmptyStateMode)` method. If your view is capable of displaying several types of `EmptyStateModes`, you should use the `mode` property to tell them apart.
+Handling the action of the button can be done both with closures or delegates. For the latter, make your ViewController conform to the `EmptyStateViewDelegate` protocol and implement the `emptyStateViewButtonTouched(for mode: EmptyStateMode)` method. If your view is capable of displaying several types of `EmptyStateModes`, you should use the `mode` property to tell them apart.
 
 To display errors in general, you should use the global `EmptyStateMode.error(Error)` `EmptyStateMode`.
 
 ### Colors and Themes
 
-To keep things organized and easy to maintain, we keep all colors, margins and some key dimensions on the `Style` struct.
-`Style` has four nested structs:
-- `Colors`: Contains all the colors used by the app.
-- `Theme`: The theme struct works just like the colors one, but it tends to define concepts like `tintColor` and `darkBackground` instead. This is mostly used by the Providers that are also used outside of the Rapiddo app.
-- `Margins`: The horizontal and vertical margins used by the app.
-- `Dimensions`: Key dimensions, such as button heights.
+To keep things organized and easy to maintain, the `Style` struct contains the standard for all visual matters of the app.
+- Structs:
+ - `Colors`: Contains all the colors used by the app. Syntax sugar: `tintColor = Color.main.darkBackground`
+ - `Margins`: The horizontal and vertical margins used by the app. Syntax sugar: `tintColor = Margin.main.small`
+- Components:
+ - `successView()`: A Lottie animation view provided by the host app for a "success" operation.
+ - `loadingView()`: A Lottie animation view provided by the host app for a "loading" operation.
+ - `textField()`: A TextField-like view provided by the host app.
+ - `segmentedControl()`: A UISegmentedControl-like view provided by the host app.
 
-All those components are part of the `RapiddoUtils` framework. Always use them if possible. If a color or margin is not available inside these structs, consider talking to the designer to see if it was an oversight. In some extreme cases, we can resort to hardcoded values.
+`Style` also contains the image loading/caching provided by the host app. You can use the UIImageView wrappers in this case:
+`imageView.fetchImage(url:)`
+`imageView.cancelImageDownload()`
+
+If a color or margin is not available inside these structs, consider talking to the designer to see if it was an oversight. In some extreme cases, we can resort to hardcoded values.
 
 ## Assets & Strings
 
 You should always use `SwiftGen` when referencing images and strings.
 
-Rapiddo and most Provider's subprojects already contain a Run Script phase to generate reference files, so most of the times all you have to do is merely compile the project in order to update the reference files.
+The SDK's main project already contain a Run Script phase to generate reference files, so most of the times all you have to do is merely compile the project in order to update the reference files.
 
 ### Images
 
-After adding an image to it's Provider's `.xcassets` and compiling, you can access it on the `Asset` struct.
+After adding an image to the SDK's `.xcassets` and compiling, you can access it on the `Asset` struct.
 
 ```swift
 imageView.image = Asset.emptyStatePlaceholder.image
@@ -391,39 +414,28 @@ imageView.image = Asset.emptyStatePlaceholder.image
 
 ### Strings
 
-On a fast growing project like Rapiddo, keeping track of all the text displayed on the app can be quite challenging. Especially for i18n, it’s easy to have some lost strings inside the project. For that reason all the strings in the project are kept in the `Localizable.strings` file. Even though we currently support only the Portuguese language doing this from the beginning make things much easier when we decide to support other languages.
+On a fast growing project like MPay, keeping track of all the text displayed on the app can be quite challenging. Especially for i18n, it’s easy to have some lost strings inside the project. For that reason all the strings in the project are kept in the `Localizable.strings` file. Even though we currently support only the Portuguese language doing this from the beginning make things much easier when we decide to support other languages.
 
-Another benefit of this is that we can use `SwiftGen` to create a static references to those strings, making the code cleaner and easier to maintain. Every time a new text should be added to the project, create a new entry on the `Localizable` file, e.g. `"PLEASE_TRY_AGAIN" = "Por favor tente novamente.";` and, just like with images, compile the project in order to generate a static refenrece. The property will be inside the `Localization` type of that project. Then all you have to do to use it is:
+Another benefit of this is that we can use `SwiftGen` to create a static references to those strings, making the code cleaner and easier to maintain. Every time a new text should be added to the project, create a new entry on the `Localizable` file, e.g. `"PLEASE_TRY_AGAIN" = "Por favor tente novamente.";` and, just like with images, compile the project in order to generate a static refenrece. The property will be inside the `L10n` type of that project. Then all you have to do to use it is:
 
 ```swift
-let message = Localization.pleaseTryAgain
+let message = L10n.pleaseTryAgain
 ```
 
 One thing to keep in mind is that not all of the text that is displayed on the app is kept inside the app. A lot of them are sent to the app by the server.
 
-Another thing is that the `SwiftGen` scripts are defined by each Provider! If you're trying to add a string to Marmotex, you have to run Marmotex's example project.
-
 ### Error Handling
 
-The way errors are presented to users is a big deal to any mobile project. In Rapiddo, this is no different. There are three ways to display errors in Rapiddo:
+The way errors are presented to users is a big deal to any mobile project. In Mpay, this is no different. There are two ways to display errors in Rapiddo:
 
 - Empty States
-- Toast
-- SmartMessages
+- Toast provided by the host app
 
-While the error state of an `EmptyStateView` should be rendered directly on its view, all other types of errors should be presented by calling the current Coordinator's `presentError()` method.
+While the error state of an `EmptyStateView` should be rendered directly on its view, all other types of errors should be presented by calling `MovilePayDelegate`'s `showNonIntrusiveError` in the current Coordinato.
 
 ### EmptyStates
 
 As mentioned in the `EmptyState` section, you can use an `EmptyStateView` in order to block access to a view, either to warn that there's nothing there or to display an error.
-
-### Toasts
-
-If the error you recieved is not an `APIError` with an underlying `SmartMessage`, calling `presentError()` at your Coordinator will briefly display a small message view at the top of the screen. This is good when you need to display an error that doesn't need to block the user's screen, but note that if you're already rendering an `EmptyStateView` alongside this error, then displaying a toast in unnecessary. In these cases, you should call `presentError(onlyDisplaySmartMessages: true)` instead.
-
-### SmartMessages
-
-Application errors that require an action by the user or a explicit acknowledgment are displayed on special popups as `SmartMessages`. These errors get mapped as `APIErrors` and are returned by the server as a response of a request. Normally smart messages carry at least one action represented by an action that should be handled by conforming your Coordinator to the `ConditionalActionHandler` protocol. See `RapiddoCore`'s `Action` and `RapiddoUtils`' `ActionHandler`/`ConditionalActionHandler` documentation for more details.
 
 ## Protocol Conformance
 
@@ -436,6 +448,8 @@ extention MyModel: SomeProtocol {
     }
 }
 ```
+
+For class protocols, use `: AnyObject` instead of `: class`. The latter is popular, but it's not supposed to be used.
 
 ## Unused Code
 
