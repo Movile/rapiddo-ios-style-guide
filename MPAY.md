@@ -2,7 +2,7 @@
 
 If you are a MovilePay employee, you can find documentation that explains how the project iself works in the main repository's README.
 
-## Creating new screens in Rapiddo
+## Creating new screens in MovilePay
 
 We use MVVM-C (Model View View Model with Coordinators) as our architecture with our own Coordinator implementation (which you can find documentation for in the main project's README)
 
